@@ -134,3 +134,11 @@ Screenshots, downloaded round-trip files and results go to ignored `output/qa/`.
 `app/` owns workspace/state; `components/editor/` owns the panels; `components/controls/` supplies reusable inputs; `features/compositions/` holds schema/history/storage; `features/renderer/` isolates Shaders and fallback; `features/export/` generates files; `data/` contains verified metadata/starters; `styles/` contains editor tokens/layout.
 
 Deferred: GLB/USDZ/Three.js/3D editing, custom WGSL/component authoring, cross-parent drag/reparenting, scroll drivers, shared bounding-box/flow authoring, a global native-animation pause, accounts, cloud storage, collaboration, composition publishing, billing and analytics. A future 3D renderer can be added alongside the existing renderer without changing the local workspace shell.
+
+## Motion Designer foundations
+
+The toolbar switches between Shader Designer and a separate Motion Designer. Motion supports DOM/SVG scene editing, responsive styles, local images, reusable components, exposed parameters, undo/redo, JSON persistence, GSAP animation authoring and animated Astro/HTML exports.
+
+Select an element and open **Animation** in the inspector, then choose **Add Animation**. Presets create editable property tracks. The timeline opens beneath the preview; use **Show all tracks**, scrub, drag keys/bars, resize durations, and edit easing. **Edit** supports deterministic authoring; **Test triggers** runs load, viewport, scroll, hover and click behavior. Scroll inside the scene preview to test ScrollTrigger. Existing shader animation and exports remain available. See [Motion controls and verification](docs/motion.md).
+
+See [Motion Designer architecture, verification and limitations](docs/motion.md).

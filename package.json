@@ -14,11 +14,20 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "test": "vitest run",
-    "verify:export": "tsx scripts/verify-export.ts"
+    "verify:export": "tsx scripts/verify-export.ts",
+    "verify:motion-export": "tsx scripts/verify-motion-export.ts",
+    "qa:motion": "node scripts/motion-qa.mjs",
+    "qa:motion-animation": "node scripts/motion-animation-qa.mjs",
+    "qa:motion-touch": "node scripts/motion-touch-qa.mjs",
+    "qa:motion-animated-export": "node scripts/motion-animated-export-qa.mjs",
+    "qa:motion-vanilla-export": "node scripts/motion-vanilla-export-qa.mjs",
+    "qa:motion-export": "node scripts/motion-export-qa.mjs",
+    "qa:motion-pwa": "node scripts/motion-pwa-qa.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "bootstrap-icons": "^1.13.1",
+    "gsap": "^3.15.0",
     "idb": "^8.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

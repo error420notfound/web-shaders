@@ -1,14 +1,6 @@
-import { openDB } from "idb";
+import { workshopDB as db } from "../database";
 import { parseProject } from "./schema";
 import type { Project } from "./schema";
-let connection: ReturnType<typeof openDB> | undefined;
-const db = () =>
-  (connection ??= openDB("shader-workshop", 1, {
-    upgrade(db) {
-      db.createObjectStore("projects", { keyPath: "id" });
-      db.createObjectStore("settings");
-    },
-  }));
 export async function saveProject(project: Project) {
   const d = await db();
   const tx = d.transaction(["projects", "settings"], "readwrite");

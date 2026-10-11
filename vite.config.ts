@@ -24,7 +24,7 @@ export default defineConfig(({ command, isPreview }) => {
           name: "Shader Workshop",
           short_name: "Shaders",
           description:
-            "Create and edit shader compositions in your browser. Your projects stay on your device.",
+            "Author shader compositions and reusable motion scenes in your browser. Your projects stay on your device.",
           start_url: base,
           scope: base,
           display: "standalone",
