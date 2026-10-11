@@ -76,7 +76,7 @@ export function PropertyControl({
         <input readOnly value={String(value)} />
       </label>
     );
-  else if (kind === "range" && typeof value === "number")
+  else if ((kind === "range" || kind === "number") && typeof value === "number")
     control = (
       <NumberControl
         label={label}
@@ -85,6 +85,7 @@ export function PropertyControl({
         max={p.ui.max}
         step={p.ui.step || 0.01}
         onChange={change}
+        range={kind === "range"}
         unit={/angle|rotation/i.test(name) ? "°" : undefined}
       />
     );

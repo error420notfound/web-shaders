@@ -1,4 +1,5 @@
 import { effects } from "./registry";
+import { emptyAnimation } from "../features/animation/runtime";
 import type { Project, Layer } from "../features/compositions/schema";
 export function makeLayer(
   type: string,
@@ -105,7 +106,8 @@ export function createProject(starter = -1): Project {
       throw new Error(`Unavailable starter component ${l.type}`);
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    animation: emptyAnimation(),
     id: crypto.randomUUID(),
     name: starter < 0 ? "Untitled Composition" : starterNames[starter],
     createdAt: now,

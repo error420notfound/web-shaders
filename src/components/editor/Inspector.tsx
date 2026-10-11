@@ -6,7 +6,8 @@
 import { flatten } from "../../features/compositions/schema";
 import { effects, blendModes } from "../../data/registry";
 import type { Property } from "../../data/registry";
-import { PropertyControl } from "../controls/PropertyControl";
+import { AnimatedProperty } from "../timeline/AnimatedProperty";
+import { bindings } from "../../features/animation/bindings";
 import {
   NumberControl,
   ColorControl,
@@ -74,7 +75,7 @@ function DriverControl({
   const kind = Array.isArray(prop.ui.type) ? prop.ui.type[0] : prop.ui.type;
   const position = kind === "position";
   const rest = driver?.rest ?? value ?? prop.default;
-  const d = driver?.config;
+  const d = driver?.enabled === false ? undefined : driver?.config;
   function patch(changes: Record<string, any>) {
     if (driver)
       onChange({ ...driver, config: { ...driver.config, ...changes } as any });
@@ -98,6 +99,10 @@ function DriverControl({
         onChange={(type) => {
           if (type === "static") {
             onChange();
+            return;
+          }
+          if (driver && driver.config.type === type) {
+            onChange({ ...driver, enabled: true });
             return;
           }
           const min = prop.ui.min ?? 0,
@@ -371,9 +376,11 @@ export function Inspector({
                     .filter(([, v]) => (v.ui.group || "Properties") === group)
                     .map(([key, definition]) => (
                       <div key={key}>
-                        <PropertyControl
+                        <AnimatedProperty
+                          layer={layer}
+                          path={`props.${key}`}
                           name={key}
-                          p={definition}
+                          property={definition}
                           value={
                             Object.hasOwn(layer.props, key)
                               ? layer.props[key]
@@ -403,7 +410,11 @@ export function Inspector({
                                     ? layer.props[key]
                                     : definition.default,
                                 };
-                              else delete drivers[key];
+                              else if (drivers[key])
+                                drivers[key] = {
+                                  ...drivers[key],
+                                  enabled: false,
+                                };
                               onLayer({ drivers });
                             }}
                           />
@@ -414,13 +425,17 @@ export function Inspector({
               ))}
               <details className="property-group" open>
                 <summary>Compositing</summary>
-                <NumberControl
-                  label="Opacity"
+                <AnimatedProperty
+                  layer={layer}
+                  path="modifiers.opacity"
+                  name="Opacity"
+                  property={
+                    bindings(layer).find((b) => b.path === "modifiers.opacity")!
+                      .property
+                  }
                   value={layer.modifiers.opacity}
-                  min={0}
-                  max={1}
-                  step={0.01}
                   onChange={(v) => modifier({ opacity: v })}
+                  onReset={() => modifier({ opacity: 1 })}
                 />
                 <SelectControl
                   label="Blend mode"
@@ -462,25 +477,39 @@ export function Inspector({
                 <summary>Layer transform</summary>
                 {(["offsetX", "offsetY", "scale", "rotation"] as const).map(
                   (key) => (
-                    <NumberControl
+                    <AnimatedProperty
                       key={key}
-                      label={
-                        key === "offsetX"
-                          ? "Position X"
-                          : key === "offsetY"
-                            ? "Position Y"
-                            : key === "rotation"
-                              ? "Rotation"
-                              : "Scale"
-                      }
+                      layer={layer}
+                      path={`modifiers.transform.${key}`}
+                      name={key}
+                      property={{
+                        ...bindings(layer).find(
+                          (b) => b.path === `modifiers.transform.${key}`,
+                        )!.property,
+                        ui: {
+                          type: "number",
+                          label:
+                            key === "offsetX"
+                              ? "Position X"
+                              : key === "offsetY"
+                                ? "Position Y"
+                                : key === "rotation"
+                                  ? "Rotation"
+                                  : "Scale",
+                        },
+                      }}
                       value={
                         layer.modifiers.transform?.[key] ??
                         (key === "scale" ? 1 : 0)
                       }
-                      unit={key === "rotation" ? "°" : undefined}
-                      min={key === "scale" ? 0.01 : undefined}
-                      step={key === "rotation" ? 1 : 0.01}
-                      range={false}
+                      onReset={() =>
+                        modifier({
+                          transform: {
+                            ...layer.modifiers.transform,
+                            [key]: key === "scale" ? 1 : 0,
+                          },
+                        })
+                      }
                       onChange={(v) =>
                         modifier({
                           transform: { ...layer.modifiers.transform, [key]: v },

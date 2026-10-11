@@ -11,6 +11,7 @@ import type { RenderStatus } from "../../features/renderer/ShaderRenderer";
 import { RenderBoundary } from "../../features/renderer/RenderBoundary";
 import { Icon, IconButton } from "../controls/Primitives";
 import { workshopAssetUrl } from "../../features/assets";
+import type { AnimationPlayback } from "../../features/animation/playback";
 const Renderer = lazy(() => import("../../features/renderer/ShaderRenderer"));
 export function Canvas({
   project,
@@ -21,6 +22,7 @@ export function Canvas({
   onDevice,
   onStatus,
   forceFallback,
+  playback,
 }: {
   project: Project;
   playing: boolean;
@@ -30,6 +32,7 @@ export function Canvas({
   onDevice: (d: Project["preview"]["device"]) => void;
   onStatus: (s: RenderStatus) => void;
   forceFallback: boolean;
+  playback: AnimationPlayback;
 }) {
   const bounds = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 580 });
@@ -138,6 +141,7 @@ export function Canvas({
                 }
               >
                 <Renderer
+                  playback={playback}
                   layers={project.layers}
                   playing={playing}
                   onStatus={updateStatus}

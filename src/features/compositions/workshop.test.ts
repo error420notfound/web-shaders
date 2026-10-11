@@ -19,7 +19,7 @@ describe("verified package and project format", () => {
   });
   it("rejects unknown components, props, versions and unavailable assets without mutating input", () => {
     for (const change of [
-      (p: any) => (p.schemaVersion = 2),
+      (p: any) => (p.schemaVersion = 99),
       (p: any) => (p.layers[0].type = "MissingComponent"),
       (p: any) => (p.layers[0].props.fakeProperty = 123),
       (p: any) => (p.preview.image = "blob:missing"),

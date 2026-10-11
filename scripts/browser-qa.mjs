@@ -300,6 +300,8 @@ await fs.writeFile(
   path.join(root, "results.json"),
   JSON.stringify({ results, consoleErrors: errors }, null, 2),
 );
+const { runAnimationQA } = await import("./animation-qa.mjs");
+await runAnimationQA(browser, root);
 await browser.close();
 console.log(
   `${results.length} browser workflow checks passed; no page errors.`,

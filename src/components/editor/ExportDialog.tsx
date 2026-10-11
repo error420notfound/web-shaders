@@ -93,7 +93,7 @@ export function ExportDialog({
         <span>
           {tab === "react"
             ? "Verified package API · shader composition independent of preview"
-            : "Schema version 1 · uploaded images embedded"}
+            : "Schema version 2 · animation and uploaded images embedded"}
         </span>
         <button
           className="button"

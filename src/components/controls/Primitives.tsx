@@ -1,5 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+import { normalizeColor } from "../../features/animation/colors";
+import { rgba } from "../../features/animation/runtime";
 export function Icon({ name }: { name: string }) {
   return <i className={`bi bi-${name}`} aria-hidden="true" />;
 }
@@ -174,6 +176,21 @@ export function ColorControl({
   value: string;
   onChange: (v: string) => void;
 }) {
+  let pickerValue = "#888888";
+  try {
+    pickerValue =
+      "#" +
+      rgba(normalizeColor(value))
+        .slice(0, 3)
+        .map((v) =>
+          Math.round(v * 255)
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("");
+  } catch {
+    /* Unsupported static CSS colors remain editable as text. */
+  }
   return (
     <label className="color-control">
       <span>{label}</span>
@@ -181,7 +198,7 @@ export function ColorControl({
         <input
           aria-label={`${label} picker`}
           type="color"
-          value={/^#[a-f\d]{6}$/i.test(value) ? value : "#888888"}
+          value={pickerValue}
           onChange={(e) => onChange(e.target.value)}
         />
         <input

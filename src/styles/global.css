@@ -1744,6 +1744,58 @@ kbd {
     max-height: 80px;
   }
 }
+.canvas-timeline { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.canvas-timeline > .canvas-area { flex: 1; min-height: 160px; }
+.timeline-panel { background: var(--surface); border-top: 1px solid var(--border); font-size: 11px; flex: none; position: relative; }
+.timeline-heading { display: flex; align-items: center; gap: 8px; padding: 4px 12px; min-height: 38px; }
+.timeline-toggle { display: flex; align-items: center; gap: 8px; flex: 1; text-align: left; font-weight: 600; }
+.timeline-toggle small { font-weight: 400; color: var(--muted); }
+.timeline-body { height: var(--timeline-height); display: flex; flex-direction: column; min-height: 200px; }
+.timeline-toolbar { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 6px 12px; flex: none; }
+.timeline-toolbar label, .keyframe-inspector label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.timeline-panel input, .timeline-panel select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 3px; }
+.timeline-number input { width: 58px; }
+.timeline-seek { margin: 0 12px; width: calc(100% - 24px); flex: none; }
+.timeline-scroll { overflow: auto; flex: 1; min-height: 65px; }
+.timeline-ruler, .timeline-track { display: flex; min-height: 30px; border-bottom: 1px solid var(--border); }
+.track-label { position: sticky; left: 0; z-index: 3; width: 200px; flex: 0 0 200px; padding: 5px 10px; display: flex; gap: 6px; align-items: center; background: var(--surface); }
+.track-label button:first-of-type { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ruler-times, .track-lane { position: relative; flex: 1; touch-action: none; }
+.ruler-times span { position: absolute; top: 6px; color: var(--muted); }
+.timeline-layer-name { padding: 6px 12px; font-weight: 600; position: sticky; left: 0; }
+.timeline-layer.selected > .timeline-layer-name { color: var(--accent); }
+.timeline-key { position: absolute; transform: translateX(-50%); top: 4px; color: var(--muted); height: 24px; width: 24px; z-index: 2; touch-action: none; }
+.timeline-key.selected, .key-button.active { color: var(--accent); background: var(--selected); }
+.track-line { position: absolute; top: 15px; width: 100%; border-top: 1px solid var(--border); }
+.timeline-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); pointer-events: none; z-index: 1; }
+.timeline-empty { padding: 22px; color: var(--muted); }
+.timeline-track.inactive { opacity: .65; }
+.keyframe-inspector { display: flex; align-items: center; gap: 10px; overflow: auto; padding: 6px 12px; max-height: 100px; border-top: 1px solid var(--border); flex: none; }
+.keyframe-inspector .property-control { min-width: 160px; }
+.timeline-note { padding: 5px 12px; color: var(--muted); }
+.timeline-resize { position: absolute; top: -3px; height: 6px; width: 100%; cursor: ns-resize; touch-action: none; z-index: 5; }
+.timeline-mobile-close, .timeline-mobile-filter { display: none; }
+.animation-source { display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding: 3px 16px 0; font-size: 10px; }
+.animation-source select { max-width: 120px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font: inherit; }
+.key-button { width: 28px; min-height: 28px; border-radius: 3px; }
+.auto-key.active { color: var(--accent); }
+@media (max-width: 1180px) {
+  .timeline-panel.is-open { position: fixed; inset: auto 0 0; z-index: 30; box-shadow: 0 -4px 20px #0002; }
+  .timeline-panel.is-open .timeline-body { height: min(55dvh, 500px); padding-bottom: env(safe-area-inset-bottom); }
+  .timeline-mobile-close { display: block; padding: 10px; border-top: 1px solid var(--border); }
+  .timeline-mobile-filter { display: block; padding: 8px 12px; text-align: left; color: var(--accent); }
+  .timeline-body:not(.show-all-tracks) .timeline-layer:not(.selected) { display: none; }
+  .timeline-resize { display: none; }
+}
+@media (max-width: 800px) {
+  .timeline-toolbar button, .timeline-heading button, .keyframe-inspector button { min-height: 44px; min-width: 36px; }
+  .timeline-key { width: 40px; height: 40px; top: 0; }
+  .timeline-track { min-height: 42px; }
+  .timeline-key { line-height: 40px; }
+  .track-label { width: 145px; flex-basis: 145px; }
+  .timeline-note { display: none; }
+  .key-button { min-height: 44px; min-width: 44px; }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

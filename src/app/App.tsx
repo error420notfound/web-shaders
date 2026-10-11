@@ -26,6 +26,9 @@ import { Icon, IconButton, Modal } from "../components/controls/Primitives";
 import { ShareButton } from "../components/controls/ShareButton";
 import { download } from "../features/export/code";
 import type { RenderStatus } from "../features/renderer/ShaderRenderer";
+import { AnimationPlayback } from "../features/animation/playback";
+import { AnimationEditorProvider } from "../features/animation/editor";
+import { TimelinePanel } from "../components/timeline/TimelinePanel";
 
 function move(nodes: Layer[], id: string, delta: number): Layer[] {
   const index = nodes.findIndex((l) => l.id === id);
@@ -38,6 +41,9 @@ function move(nodes: Layer[], id: string, delta: number): Layer[] {
   return nodes.map((l) => ({ ...l, children: move(l.children, id, delta) }));
 }
 export default function App() {
+  const [playback] = useState(() => new AnimationPlayback());
+  useEffect(() => () => playback.pause(), [playback]);
+  const [previewOptIn, setPreviewOptIn] = useState(false);
   const [history, setHistory] = useState<History>(() => ({
     present: createProject(0),
     past: [],
@@ -90,6 +96,8 @@ export default function App() {
     return writeQueue.current;
   }
   function load(p: Project) {
+    playback.seek(0);
+    setPreviewOptIn(false);
     setHistory({
       present: parseProject(p),
       past: [],
@@ -170,7 +178,9 @@ export default function App() {
           .querySelectorAll<HTMLDetailsElement>(".project-menu[open]")
           .forEach((d) => (d.open = false));
       }
-      const input = (e.target as HTMLElement).matches("input,textarea,select");
+      const input = !!(e.target as HTMLElement).closest(
+        'input,textarea,select,[contenteditable="true"],[role="slider"],[role="dialog"]',
+      );
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !input) {
         e.preventDefault();
         setHistory((h) => (e.shiftKey ? redo(h) : undo(h)));
@@ -232,8 +242,8 @@ export default function App() {
     setHistory((h) => {
       const next = fn(h.present);
       try {
-        parseProject(next);
-        return editHistory(h, next, group, Date.now(), dragging.current);
+        const validated = parseProject(next);
+        return editHistory(h, validated, group, Date.now(), dragging.current);
       } catch (e) {
         setError((e as Error).message);
         return h;
@@ -280,14 +290,42 @@ export default function App() {
   }
   function duplicateLayer(id: string) {
     commit((p) => {
+      const copies = new Map<string, string>();
       function clone(nodes: Layer[]): Layer[] {
         return nodes.flatMap((l) =>
           l.id === id
-            ? [l, cloneLayer(l)]
+            ? (() => {
+                const copy = cloneLayer(l);
+                const old = flatten([l]),
+                  fresh = flatten([copy]);
+                old.forEach((node, i) => copies.set(node.id, fresh[i].id));
+                return [l, copy];
+              })()
             : [{ ...l, children: clone(l.children) }],
         );
       }
-      return { ...p, layers: clone(p.layers) };
+      const layers = clone(p.layers);
+      return {
+        ...p,
+        layers,
+        animation: {
+          ...p.animation,
+          tracks: [
+            ...p.animation.tracks,
+            ...p.animation.tracks
+              .filter((t) => copies.has(t.layerId))
+              .map((t) => ({
+                ...structuredClone(t),
+                id: crypto.randomUUID(),
+                layerId: copies.get(t.layerId)!,
+                keyframes: t.keyframes.map((k) => ({
+                  ...structuredClone(k),
+                  id: crypto.randomUUID(),
+                })),
+              })),
+          ],
+        },
+      };
     });
   }
   function remove(id: string) {
@@ -308,7 +346,14 @@ export default function App() {
           return { ...l, modifiers, drivers, children: clean(l.children) };
         });
       }
-      return { ...p, layers: clean(layers) };
+      return {
+        ...p,
+        layers: clean(layers),
+        animation: {
+          ...p.animation,
+          tracks: p.animation.tracks.filter((t) => !doomed.has(t.layerId)),
+        },
+      };
     });
     if (selected === id) setSelected(null);
   }
@@ -356,433 +401,466 @@ export default function App() {
     commit((p) => ({ ...p, preview: { ...p.preview, ...changes } }), group);
   }
   return (
-    <div className="workshop">
-      <header className="top-toolbar">
-        <a className="brand" href="#" aria-label="Shader Workshop">
-          <span className="brand-mark">
-            <Icon name="asterisk" />
+    <AnimationEditorProvider
+      project={project}
+      playback={playback}
+      selected={selected}
+      onSelect={(id) => {
+        setSelected(id);
+        setTab("layer");
+      }}
+      commit={commit}
+    >
+      <div className="workshop">
+        <header className="top-toolbar">
+          <a className="brand" href="#" aria-label="Shader Workshop">
+            <span className="brand-mark">
+              <Icon name="asterisk" />
+            </span>
+            <span>
+              Shader
+              <br />
+              <strong>Workshop</strong>
+            </span>
+          </a>
+          <div className="toolbar-divider" />
+          <details className="project-menu">
+            <summary aria-label="Project actions">
+              <Icon name="folder2" />
+              <span>Project</span>
+              <Icon name="chevron-down" />
+            </summary>
+            <div className="menu-popover">
+              {[
+                {
+                  label: "New composition",
+                  icon: "plus-lg",
+                  action: () => setModal("new"),
+                },
+                {
+                  label: "Open local project",
+                  icon: "folder2-open",
+                  action: openProjects,
+                },
+                {
+                  label: "Duplicate project",
+                  icon: "copy",
+                  action: duplicateProject,
+                },
+                {
+                  label: "Rename project",
+                  icon: "pencil",
+                  action: () =>
+                    document
+                      .querySelector<HTMLInputElement>(
+                        '[aria-label="Project name"]',
+                      )
+                      ?.focus(),
+                },
+                {
+                  label: "Import project JSON",
+                  icon: "upload",
+                  action: () => importInput.current?.click(),
+                },
+                {
+                  label: "Delete project",
+                  icon: "trash3",
+                  action: () => setDeleteId(project.id),
+                },
+              ].map((a) => (
+                <button
+                  key={a.label}
+                  onClick={(ev) => {
+                    (
+                      ev.currentTarget.closest("details") as HTMLDetailsElement
+                    ).open = false;
+                    void a.action();
+                  }}
+                >
+                  <Icon name={a.icon} />
+                  {a.label}
+                </button>
+              ))}
+              <hr />
+              <label>
+                <input
+                  type="checkbox"
+                  checked={fallback}
+                  onChange={(e) => setFallback(e.target.checked)}
+                />{" "}
+                Simulate WebGPU unavailable
+              </label>
+            </div>
+          </details>
+          <input
+            className="project-name"
+            aria-label="Project name"
+            value={project.name}
+            onChange={(e) => {
+              if (e.target.value)
+                commit((p) => ({ ...p, name: e.target.value }), "project-name");
+            }}
+          />
+          <div className="history-buttons">
+            <IconButton
+              icon="arrow-counterclockwise"
+              label="Undo"
+              disabled={!history.past.length}
+              onClick={() => setHistory(undo)}
+            />
+            <IconButton
+              icon="arrow-clockwise"
+              label="Redo"
+              disabled={!history.future.length}
+              onClick={() => setHistory(redo)}
+            />
+          </div>
+          <div className="toolbar-divider" />
+          <IconButton
+            icon={playing ? "pause-fill" : "play-fill"}
+            label={playing ? "Pause app motion" : "Play app motion"}
+            active={playing}
+            onClick={() => setPlaying((p) => !p)}
+          />
+          <span
+            className={`saved-state ${saved === "Save failed" ? "failed" : ""}`}
+            role="status"
+          >
+            <Icon name={saved === "Saving…" ? "arrow-repeat" : "check2"} />
+            {saved}
           </span>
-          <span>
-            Shader
-            <br />
-            <strong>Workshop</strong>
+          <div className="toolbar-spacer" />
+          <div className="context-switch segmented">
+            <button
+              className={project.context === "website" ? "active" : ""}
+              onClick={() => commit((p) => ({ ...p, context: "website" }))}
+            >
+              <Icon name="window" />
+              <span>Website Section</span>
+            </button>
+            <button
+              className={project.context === "item" ? "active" : ""}
+              onClick={() => commit((p) => ({ ...p, context: "item" }))}
+            >
+              <Icon name="box" />
+              <span>Item Background</span>
+            </button>
+          </div>
+          <div className="theme-control">
+            <IconButton
+              icon={theme === "light" ? "moon" : "sun"}
+              label="Switch theme"
+              onClick={() =>
+                setTheme((t) => (t === "light" ? "dark" : "light"))
+              }
+            />
+          </div>
+          <ShareButton />
+          <button
+            className="button primary export-trigger"
+            onClick={() => setModal("export")}
+          >
+            <Icon name="box-arrow-up" />
+            Export
+          </button>
+        </header>
+        {error && (
+          <div className="error-bar" role="alert">
+            <Icon name="exclamation-triangle" />
+            <span>{error}</span>
+            <IconButton
+              icon="x-lg"
+              label="Dismiss error"
+              onClick={() => setError("")}
+            />
+          </div>
+        )}
+        <nav className="mobile-tools">
+          <button
+            onClick={() => {
+              setLibraryOpen((v) => !v);
+              setInspectorOpen(false);
+            }}
+            className={libraryOpen ? "active" : ""}
+          >
+            <Icon name="collection" />
+            Library & layers
+          </button>
+          <span>{layer?.name || "Preview controls"}</span>
+          <button
+            onClick={() => {
+              setInspectorOpen((v) => !v);
+              setLibraryOpen(false);
+            }}
+            className={inspectorOpen ? "active" : ""}
+          >
+            <Icon name="sliders2" />
+            Inspector
+          </button>
+        </nav>
+        <div
+          className={`editor-layout ${libraryOpen ? "library-open" : ""} ${inspectorOpen ? "inspector-open" : ""}`}
+        >
+          <aside className="left-rail">
+            <Library onAdd={add} />
+            <LayerList
+              layers={project.layers}
+              selected={selected}
+              onSelect={(id) => {
+                setSelected(id);
+                setTab("layer");
+              }}
+              onChange={changeLayer}
+              onMove={(id, delta) =>
+                commit((p) => ({ ...p, layers: move(p.layers, id, delta) }))
+              }
+              onDelete={remove}
+              onDuplicate={duplicateLayer}
+            />
+            <button className="starter-button" onClick={() => setModal("new")}>
+              <Icon name="grid-1x2" />
+              Browse starter compositions
+              <Icon name="arrow-up-right" />
+            </button>
+          </aside>
+          <div className="canvas-timeline">
+            <Canvas
+              playback={playback}
+              project={project}
+              playing={playing}
+              reduced={(reduced || systemReduced) && !previewOptIn}
+              zoom={zoom}
+              onZoom={setZoom}
+              onDevice={(device) =>
+                preview({
+                  device,
+                  ...(device === "mobile" && project.preview.ratio === "16/9"
+                    ? { ratio: "3/4" as const }
+                    : {}),
+                })
+              }
+              onStatus={setGpu}
+              forceFallback={fallback}
+            />
+            <TimelinePanel />
+          </div>
+          <Inspector
+            project={project}
+            layer={layer}
+            tab={tab}
+            onTab={setTab}
+            onLayer={(changes, group) => {
+              if (selected) changeLayer(selected, changes, group);
+            }}
+            onPreview={preview}
+          />
+        </div>
+        <footer className="status-bar">
+          <span className={`gpu-status status-${gpu}`}>
+            <span className="status-dot" />
+            {gpu === "ready"
+              ? "WebGPU active"
+              : gpu === "loading"
+                ? "Starting renderer…"
+                : gpu === "reduced"
+                  ? "Reduced motion"
+                  : gpu === "error"
+                    ? "Renderer error"
+                    : "Static fallback"}
           </span>
-        </a>
-        <div className="toolbar-divider" />
-        <details className="project-menu">
-          <summary aria-label="Project actions">
-            <Icon name="folder2" />
-            <span>Project</span>
-            <Icon name="chevron-down" />
-          </summary>
-          <div className="menu-popover">
-            {[
-              {
-                label: "New composition",
-                icon: "plus-lg",
-                action: () => setModal("new"),
-              },
-              {
-                label: "Open local project",
-                icon: "folder2-open",
-                action: openProjects,
-              },
-              {
-                label: "Duplicate project",
-                icon: "copy",
-                action: duplicateProject,
-              },
-              {
-                label: "Rename project",
-                icon: "pencil",
-                action: () =>
-                  document
-                    .querySelector<HTMLInputElement>(
-                      '[aria-label="Project name"]',
-                    )
-                    ?.focus(),
-              },
-              {
-                label: "Import project JSON",
-                icon: "upload",
-                action: () => importInput.current?.click(),
-              },
-              {
-                label: "Delete project",
-                icon: "trash3",
-                action: () => setDeleteId(project.id),
-              },
-            ].map((a) => (
-              <button
-                key={a.label}
-                onClick={(ev) => {
-                  (
-                    ev.currentTarget.closest("details") as HTMLDetailsElement
-                  ).open = false;
-                  void a.action();
-                }}
-              >
-                <Icon name={a.icon} />
-                {a.label}
-              </button>
-            ))}
-            <hr />
+          <span className="local-note">
+            <Icon name="hdd" />
+            Local workspace · Shaders 4.0.4
+          </span>
+          <label>
+            <input
+              type="checkbox"
+              checked={reduced || systemReduced}
+              disabled={systemReduced}
+              onChange={(e) => setReduced(e.target.checked)}
+            />
+            Reduced motion preview
+          </label>
+          {(reduced || systemReduced) && (
             <label>
               <input
                 type="checkbox"
-                checked={fallback}
-                onChange={(e) => setFallback(e.target.checked)}
-              />{" "}
-              Simulate WebGPU unavailable
+                checked={previewOptIn}
+                onChange={(e) => {
+                  setPreviewOptIn(e.target.checked);
+                  if (!e.target.checked) playback.pause();
+                }}
+              />
+              Enable shader preview for timeline editing
             </label>
-          </div>
-        </details>
+          )}
+          <span className="shortcut">
+            Undo <kbd>Ctrl Z</kbd>
+          </span>
+        </footer>
         <input
-          className="project-name"
-          aria-label="Project name"
-          value={project.name}
-          onChange={(e) => {
-            if (e.target.value)
-              commit((p) => ({ ...p, name: e.target.value }), "project-name");
-          }}
-        />
-        <div className="history-buttons">
-          <IconButton
-            icon="arrow-counterclockwise"
-            label="Undo"
-            disabled={!history.past.length}
-            onClick={() => setHistory(undo)}
-          />
-          <IconButton
-            icon="arrow-clockwise"
-            label="Redo"
-            disabled={!history.future.length}
-            onClick={() => setHistory(redo)}
-          />
-        </div>
-        <div className="toolbar-divider" />
-        <IconButton
-          icon={playing ? "pause-fill" : "play-fill"}
-          label={playing ? "Pause app motion" : "Play app motion"}
-          active={playing}
-          onClick={() => setPlaying((p) => !p)}
-        />
-        <span
-          className={`saved-state ${saved === "Save failed" ? "failed" : ""}`}
-          role="status"
-        >
-          <Icon name={saved === "Saving…" ? "arrow-repeat" : "check2"} />
-          {saved}
-        </span>
-        <div className="toolbar-spacer" />
-        <div className="context-switch segmented">
-          <button
-            className={project.context === "website" ? "active" : ""}
-            onClick={() => commit((p) => ({ ...p, context: "website" }))}
-          >
-            <Icon name="window" />
-            <span>Website Section</span>
-          </button>
-          <button
-            className={project.context === "item" ? "active" : ""}
-            onClick={() => commit((p) => ({ ...p, context: "item" }))}
-          >
-            <Icon name="box" />
-            <span>Item Background</span>
-          </button>
-        </div>
-        <div className="theme-control">
-          <IconButton
-            icon={theme === "light" ? "moon" : "sun"}
-            label="Switch theme"
-            onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-          />
-        </div>
-        <ShareButton />
-        <button
-          className="button primary export-trigger"
-          onClick={() => setModal("export")}
-        >
-          <Icon name="box-arrow-up" />
-          Export
-        </button>
-      </header>
-      {error && (
-        <div className="error-bar" role="alert">
-          <Icon name="exclamation-triangle" />
-          <span>{error}</span>
-          <IconButton
-            icon="x-lg"
-            label="Dismiss error"
-            onClick={() => setError("")}
-          />
-        </div>
-      )}
-      <nav className="mobile-tools">
-        <button
-          onClick={() => {
-            setLibraryOpen((v) => !v);
-            setInspectorOpen(false);
-          }}
-          className={libraryOpen ? "active" : ""}
-        >
-          <Icon name="collection" />
-          Library & layers
-        </button>
-        <span>{layer?.name || "Preview controls"}</span>
-        <button
-          onClick={() => {
-            setInspectorOpen((v) => !v);
-            setLibraryOpen(false);
-          }}
-          className={inspectorOpen ? "active" : ""}
-        >
-          <Icon name="sliders2" />
-          Inspector
-        </button>
-      </nav>
-      <div
-        className={`editor-layout ${libraryOpen ? "library-open" : ""} ${inspectorOpen ? "inspector-open" : ""}`}
-      >
-        <aside className="left-rail">
-          <Library onAdd={add} />
-          <LayerList
-            layers={project.layers}
-            selected={selected}
-            onSelect={(id) => {
-              setSelected(id);
-              setTab("layer");
-            }}
-            onChange={changeLayer}
-            onMove={(id, delta) =>
-              commit((p) => ({ ...p, layers: move(p.layers, id, delta) }))
+          className="sr-only"
+          ref={importInput}
+          type="file"
+          accept=".json,application/json"
+          aria-label="Import project JSON file"
+          onChange={async (ev) => {
+            const file = ev.target.files?.[0];
+            ev.target.value = "";
+            if (file) {
+              const original = await file.text();
+              try {
+                const p = parseProject(JSON.parse(original));
+                await enqueue(project);
+                await enqueue(p);
+                load(p);
+              } catch (e) {
+                setRejected({
+                  name: file.name,
+                  text: original,
+                  error: (e as Error).message,
+                });
+                setError(
+                  `Import rejected — ${String((e as Error).message)}. Original file and current project are unchanged.`,
+                );
+              }
             }
-            onDelete={remove}
-            onDuplicate={duplicateLayer}
-          />
-          <button className="starter-button" onClick={() => setModal("new")}>
-            <Icon name="grid-1x2" />
-            Browse starter compositions
-            <Icon name="arrow-up-right" />
-          </button>
-        </aside>
-        <Canvas
-          project={project}
-          playing={playing}
-          reduced={reduced || systemReduced}
-          zoom={zoom}
-          onZoom={setZoom}
-          onDevice={(device) =>
-            preview({
-              device,
-              ...(device === "mobile" && project.preview.ratio === "16/9"
-                ? { ratio: "3/4" as const }
-                : {}),
-            })
-          }
-          onStatus={setGpu}
-          forceFallback={fallback}
-        />
-        <Inspector
-          project={project}
-          layer={layer}
-          tab={tab}
-          onTab={setTab}
-          onLayer={(changes, group) => {
-            if (selected) changeLayer(selected, changes, group);
           }}
-          onPreview={preview}
         />
-      </div>
-      <footer className="status-bar">
-        <span className={`gpu-status status-${gpu}`}>
-          <span className="status-dot" />
-          {gpu === "ready"
-            ? "WebGPU active"
-            : gpu === "loading"
-              ? "Starting renderer…"
-              : gpu === "reduced"
-                ? "Reduced motion"
-                : gpu === "error"
-                  ? "Renderer error"
-                  : "Static fallback"}
-        </span>
-        <span className="local-note">
-          <Icon name="hdd" />
-          Local workspace · Shaders 4.0.4
-        </span>
-        <label>
-          <input
-            type="checkbox"
-            checked={reduced || systemReduced}
-            disabled={systemReduced}
-            onChange={(e) => setReduced(e.target.checked)}
-          />
-          Reduced motion preview
-        </label>
-        <span className="shortcut">
-          Undo <kbd>Ctrl Z</kbd>
-        </span>
-      </footer>
-      <input
-        className="sr-only"
-        ref={importInput}
-        type="file"
-        accept=".json,application/json"
-        aria-label="Import project JSON file"
-        onChange={async (ev) => {
-          const file = ev.target.files?.[0];
-          ev.target.value = "";
-          if (file) {
-            const original = await file.text();
-            try {
-              const p = parseProject(JSON.parse(original));
-              await enqueue(project);
-              await enqueue(p);
-              load(p);
-            } catch (e) {
-              setRejected({
-                name: file.name,
-                text: original,
-                error: (e as Error).message,
-              });
-              setError(
-                `Import rejected — ${String((e as Error).message)}. Original file and current project are unchanged.`,
-              );
-            }
-          }
-        }}
-      />
-      <Modal
-        open={modal === "new"}
-        onClose={() => setModal(null)}
-        title="Start a composition"
-        description="Begin with a blank canvas or make a starter your own."
-        wide
-      >
-        <button className="blank-starter" onClick={() => void newProject(-1)}>
-          <Icon name="plus-lg" />
-          <div>
-            <strong>Blank canvas</strong>
-            <p>A clean starting point for your next idea.</p>
-          </div>
-          <Icon name="arrow-right" />
-        </button>
-        <div className="starter-grid">
-          {starterNames.map((name, i) => (
-            <button key={name} onClick={() => void newProject(i)}>
-              <span className="starter-number">0{i + 1}</span>
-              <strong>{name}</strong>
-              <small>{i === 5 ? "Item Background" : "Website Section"}</small>
-              <Icon name="arrow-up-right" />
-            </button>
-          ))}
-        </div>
-      </Modal>
-      <Modal
-        open={modal === "open"}
-        onClose={() => setModal(null)}
-        title="Local projects"
-        description="Saved in this browser, on this device."
-      >
-        <div className="project-list">
-          {projects.map((p) => (
-            <div key={p.id}>
-              <button
-                className="open-project"
-                onClick={() => void switchProject(p)}
-              >
-                <Icon name="file-earmark" />
-                <span>
-                  <strong>{p.name}</strong>
-                  <small>
-                    {p.context === "website"
-                      ? "Website Section"
-                      : "Item Background"}{" "}
-                    · {new Date(p.updatedAt).toLocaleString()}
-                  </small>
-                </span>
+        <Modal
+          open={modal === "new"}
+          onClose={() => setModal(null)}
+          title="Start a composition"
+          description="Begin with a blank canvas or make a starter your own."
+          wide
+        >
+          <button className="blank-starter" onClick={() => void newProject(-1)}>
+            <Icon name="plus-lg" />
+            <div>
+              <strong>Blank canvas</strong>
+              <p>A clean starting point for your next idea.</p>
+            </div>
+            <Icon name="arrow-right" />
+          </button>
+          <div className="starter-grid">
+            {starterNames.map((name, i) => (
+              <button key={name} onClick={() => void newProject(i)}>
+                <span className="starter-number">0{i + 1}</span>
+                <strong>{name}</strong>
+                <small>{i === 5 ? "Item Background" : "Website Section"}</small>
                 <Icon name="arrow-up-right" />
               </button>
-              <IconButton
-                icon="trash3"
-                label={`Delete project ${p.name}`}
-                onClick={() => setDeleteId(p.id)}
-              />
-            </div>
-          ))}
-          {!projects.length && <p>No saved projects yet.</p>}
-        </div>
-      </Modal>
-      <Modal
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        title="Delete saved project?"
-        description="This removes the local copy. Export JSON first if you need to keep it."
-      >
-        <footer className="dialog-actions">
-          <button className="button" onClick={() => setDeleteId(null)}>
-            Cancel
-          </button>
-          <button
-            className="button danger"
-            onClick={async () => {
-              if (!deleteId) return;
-              try {
-                clearTimeout(saveTimer.current);
-                await writeQueue.current;
-                await deleteProject(deleteId);
-                if (deleteId === project.id) {
-                  const rest = await listProjects();
-                  load(rest[0] || createProject(-1));
+            ))}
+          </div>
+        </Modal>
+        <Modal
+          open={modal === "open"}
+          onClose={() => setModal(null)}
+          title="Local projects"
+          description="Saved in this browser, on this device."
+        >
+          <div className="project-list">
+            {projects.map((p) => (
+              <div key={p.id}>
+                <button
+                  className="open-project"
+                  onClick={() => void switchProject(p)}
+                >
+                  <Icon name="file-earmark" />
+                  <span>
+                    <strong>{p.name}</strong>
+                    <small>
+                      {p.context === "website"
+                        ? "Website Section"
+                        : "Item Background"}{" "}
+                      · {new Date(p.updatedAt).toLocaleString()}
+                    </small>
+                  </span>
+                  <Icon name="arrow-up-right" />
+                </button>
+                <IconButton
+                  icon="trash3"
+                  label={`Delete project ${p.name}`}
+                  onClick={() => setDeleteId(p.id)}
+                />
+              </div>
+            ))}
+            {!projects.length && <p>No saved projects yet.</p>}
+          </div>
+        </Modal>
+        <Modal
+          open={!!deleteId}
+          onClose={() => setDeleteId(null)}
+          title="Delete saved project?"
+          description="This removes the local copy. Export JSON first if you need to keep it."
+        >
+          <footer className="dialog-actions">
+            <button className="button" onClick={() => setDeleteId(null)}>
+              Cancel
+            </button>
+            <button
+              className="button danger"
+              onClick={async () => {
+                if (!deleteId) return;
+                try {
+                  clearTimeout(saveTimer.current);
+                  await writeQueue.current;
+                  await deleteProject(deleteId);
+                  if (deleteId === project.id) {
+                    const rest = await listProjects();
+                    load(rest[0] || createProject(-1));
+                  }
+                  setProjects(await listProjects());
+                  setDeleteId(null);
+                } catch (e) {
+                  setError((e as Error).message);
                 }
-                setProjects(await listProjects());
-                setDeleteId(null);
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Delete project
-          </button>
-        </footer>
-      </Modal>
-      <ExportDialog
-        open={modal === "export"}
-        onClose={() => setModal(null)}
-        project={project}
-      />
-      <Modal
-        open={!!rejected}
-        onClose={() => setRejected(null)}
-        title="Project import rejected"
-        description="No data was discarded. The original JSON is preserved below."
-      >
-        <pre className="import-errors">{rejected?.error}</pre>
-        <details>
-          <summary>Original file data</summary>
-          <textarea
-            aria-label="Rejected project JSON"
-            readOnly
-            value={rejected?.text || ""}
-            style={{ width: "100%", height: 200 }}
-          />
-        </details>
-        <footer className="dialog-actions">
-          <button
-            className="button"
-            onClick={() => {
-              if (rejected)
-                download(rejected.name, rejected.text, "application/json");
-            }}
-          >
-            Download original file
-          </button>
-          <button className="button primary" onClick={() => setRejected(null)}>
-            Close
-          </button>
-        </footer>
-      </Modal>
-    </div>
+              }}
+            >
+              Delete project
+            </button>
+          </footer>
+        </Modal>
+        <ExportDialog
+          open={modal === "export"}
+          onClose={() => setModal(null)}
+          project={project}
+        />
+        <Modal
+          open={!!rejected}
+          onClose={() => setRejected(null)}
+          title="Project import rejected"
+          description="No data was discarded. The original JSON is preserved below."
+        >
+          <pre className="import-errors">{rejected?.error}</pre>
+          <details>
+            <summary>Original file data</summary>
+            <textarea
+              aria-label="Rejected project JSON"
+              readOnly
+              value={rejected?.text || ""}
+              style={{ width: "100%", height: 200 }}
+            />
+          </details>
+          <footer className="dialog-actions">
+            <button
+              className="button"
+              onClick={() => {
+                if (rejected)
+                  download(rejected.name, rejected.text, "application/json");
+              }}
+            >
+              Download original file
+            </button>
+            <button
+              className="button primary"
+              onClick={() => setRejected(null)}
+            >
+              Close
+            </button>
+          </footer>
+        </Modal>
+      </div>
+    </AnimationEditorProvider>
   );
 }

@@ -81,7 +81,7 @@ All 200 components are available, but only representative compositions have been
 
 ## Versioned project format
 
-The source of truth is `src/features/compositions/schema.ts`, a strict Zod schema. JSON uses `schemaVersion: 1` and includes:
+The source of truth is `src/features/compositions/schema.ts`, a strict Zod schema. JSON uses `schemaVersion: 2`; version 1 projects migrate on read without resetting storage. The format includes:
 
 | Field                                  | Meaning                                                                                                                                       |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -90,6 +90,7 @@ The source of truth is `src/features/compositions/schema.ts`, a strict Zod schem
 | `preview`                              | Colours, copy, visibility, alignment/position, device width, aspect ratio, embedded image/name and placement                                  |
 | `layers`                               | Ordered recursive array; each layer has ID, name, component type, visibility, sparse explicit `props`, `drivers`, `modifiers`, and `children` |
 | `drivers[prop]`                        | Verified Shaders `config` plus a validated static `rest` value                                                                                |
+| `animation`                           | Duration, nominal frame rate, playback range, loop mode, property tracks, typed keyframes and serializable easing                              |
 
 Sparse props use the defaults of pinned 4.0.4. The format is pretty-printed for editing/version control. Imports reject unsupported versions, unknown fields/components/props, invalid types/ranges/choices, duplicate layer IDs and missing source references/local preview assets. No unknown data is silently stripped: errors show paths and preserve the original file in a read-only details panel with a download action. Importing a valid project with an existing project ID intentionally replaces that saved local project. Maximum supported tree size is 500 layers / 16 nesting levels.
 
@@ -99,7 +100,15 @@ Export provides copy/download of project JSON or a React/TypeScript composition,
 
 Generated code recreates layer IDs, hierarchy, visibility, props, shared modifiers and drivers, uses only needed Shaders imports, and includes `onUnavailable`, an accessible static fallback and reduced-motion handling. Copy referenced local shader media assets to the target site or use embedded data. A missing custom component produces a source warning and blocks TSX generation; importing/authoring custom components is deferred.
 
-`npm run verify:export` generates and type-checks all six starter components against installed React/Shaders types, including nested filters/Glass and automatic drivers. These are checked examples, not a guarantee of production behavior across all devices or arbitrary combinations.
+`npm run verify:export` generates and type-checks all six starter components and a nested animated composition against installed React/Shaders types, and compares the embedded portable runtime with editor evaluation across every loop mode. These are checked examples, not a guarantee of production behavior across all devices or arbitrary combinations.
+
+## Animation timeline
+
+Open the collapsible timeline beneath the canvas, then use a property diamond to insert a key at the playhead. Move the playhead, edit the value and insert again. Auto Key is off by default: between existing keys edits are staged until deliberately inserted, and seeking discards the staged value. Playback, scrubbing and selection never create project history entries.
+
+The timeline provides multitrack editing, easing and numeric Bézier controls, transactional dragging, selection/copy/paste/duplicate/delete, zoom, playback ranges, looping, ping-pong and signed playback speed. Desktop resizing and tablet/mobile drawers preserve the canvas and inspector. JSON and self-contained React TSX exports include animation. Shader drivers remain configured while timeline tracks take precedence; disabling a track restores the prior source.
+
+Timeline seeking is deterministic for authored properties. Native procedural shader clocks and pointer drivers remain independent because this integration has no public global shader-time seek API. Reduced motion retains the static preview with an explicit session opt-in for shader preview. See [animation architecture, controls, compatibility and verification](docs/animation.md) for details.
 
 ## Verification commands
 

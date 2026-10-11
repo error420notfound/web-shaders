@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { PropDriver } from "shaders/core";
 import { effects, blendModes, propError } from "../../data/registry";
+import { animationSchema } from "../animation/schema";
+import { emptyAnimation } from "../animation/runtime";
+import { bindings, bindingError } from "../animation/bindings";
 const n = z.number().finite(),
   unit = n.min(0).max(1);
 const dimension = z.union([
@@ -57,6 +60,7 @@ export const driverSchema = z.discriminatedUnion("type", [
 export interface Driver {
   config: PropDriver;
   rest: any;
+  enabled?: boolean;
 }
 export interface Layer {
   id: string;
@@ -91,7 +95,11 @@ const layerSchema: z.ZodType<Layer> = z.lazy(() =>
     props: z.record(z.string(), z.json()),
     drivers: z.record(
       z.string(),
-      z.strictObject({ config: driverSchema, rest: z.json() }),
+      z.strictObject({
+        config: driverSchema,
+        rest: z.json(),
+        enabled: z.boolean().optional(),
+      }),
     ),
     modifiers: z.strictObject({
       opacity: unit,
@@ -119,7 +127,8 @@ const layerSchema: z.ZodType<Layer> = z.lazy(() =>
 ) as z.ZodType<Layer>;
 export const projectSchema = z
   .strictObject({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
+    animation: animationSchema,
     id: z.string().min(1),
     name: z.string().min(1),
     createdAt: z.iso.datetime(),
@@ -150,6 +159,14 @@ export const projectSchema = z
     function issue(path: (string | number)[], message: string) {
       ctx.addIssue({ code: "custom", path, message });
     }
+    p.animation.tracks.forEach((track, i) => {
+      const layer = all.find((l) => l.id === track.layerId);
+      // Orphaned bindings remain portable and visible, but are never evaluated.
+      if (layer && bindings(layer).some((b) => b.path === track.propertyPath)) {
+        const error = bindingError(track, layer);
+        if (error) issue(["animation", "tracks", i], error);
+      }
+    });
     function walk(nodes: Layer[], path: (string | number)[], depth: number) {
       if (depth > 16) issue(path, "Layer nesting exceeds 16 levels");
       nodes.forEach((l, index) => {
@@ -262,10 +279,25 @@ export function flatten(nodes: Layer[]): Layer[] {
 }
 export function parseProject(input: unknown): Project {
   const version = (input as any)?.schemaVersion;
-  if (version !== 1)
+  if (version !== 1 && version !== 2)
     throw new Error(
-      `Unsupported schema version ${String(version)}. This version reads schemaVersion 1.`,
+      `Unsupported schema version ${String(version)}. This version reads schemaVersion 1 and 2.`,
     );
+  if (
+    version === 1 &&
+    input &&
+    typeof input === "object" &&
+    "animation" in input
+  )
+    throw new Error(
+      "schemaVersion 1 must not contain animation data; preserve the original file and use schemaVersion 2 for animation",
+    );
+  if (version === 1)
+    input = {
+      ...(input as object),
+      schemaVersion: 2,
+      animation: emptyAnimation(),
+    };
   const pending = Array.isArray((input as any)?.layers)
     ? (input as any).layers.map((node: unknown) => ({ node, depth: 0 }))
     : [];
