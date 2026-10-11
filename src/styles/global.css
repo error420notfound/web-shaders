@@ -133,10 +133,36 @@ a {
   color: var(--accent);
 }
 .workshop {
+  height: 100vh;
   height: 100dvh;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--chrome);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+.share-control,
+.theme-control {
+  display: flex;
+  flex-shrink: 0;
+}
+.share-feedback {
+  position: fixed;
+  bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 16px #0002;
+  z-index: 65;
+}
+.share-url {
+  width: 100%;
 }
 .top-toolbar {
   height: 60px;
@@ -1173,6 +1199,9 @@ kbd {
   transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 28px));
   max-height: 88dvh;
+  max-height: calc(
+    88dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+  );
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1566,7 +1595,10 @@ kbd {
     row-gap: 8px;
   }
   .project-name {
-    width: calc(100vw - 225px);
+    width: calc(
+      100vw - 225px - env(safe-area-inset-left, 0px) -
+        env(safe-area-inset-right, 0px)
+    );
     min-width: 110px;
     font-size: 11px;
   }
@@ -1578,7 +1610,7 @@ kbd {
   }
   .top-toolbar > .context-switch {
     margin-left: 42px;
-    width: calc(100% - 148px);
+    width: calc(100% - 180px);
     order: 10;
     justify-content: center;
   }
@@ -1591,9 +1623,16 @@ kbd {
   .context-switch button span {
     display: inline;
   }
-  .top-toolbar > .icon-button:last-of-type {
+  .top-toolbar > .theme-control {
     order: 11;
     margin-left: 7px;
+  }
+  .top-toolbar > .share-control {
+    order: 11;
+  }
+  .share-control .icon-button,
+  .theme-control .icon-button {
+    width: 25px;
   }
   .export-trigger {
     order: 12;

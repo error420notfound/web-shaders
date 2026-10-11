@@ -18,7 +18,19 @@ npm run build
 npm run preview
 ```
 
-The deployable, static application is in `dist/`. Serve it over HTTPS or localhost for WebGPU. After downloading the app's built assets, its default sample object and six starter compositions require no external assets. This version does not install a service worker; browser navigation while completely offline requires a locally served build or an existing browser cache.
+The deployable, static application is in `dist/`. Production builds use the `/web-shaders/` base path; local development stays at `/`. Open the URL printed by `npm run preview`, including `/web-shaders/`. Serve it over HTTPS or localhost for WebGPU.
+
+## GitHub Pages and installation
+
+The workflow in `.github/workflows/deploy-pages.yml` builds and deploys `dist/` on pushes to `main`, or through **Actions → Deploy GitHub Pages → Run workflow**. In the repository's **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**. The production URL is **https://error420notfound.github.io/web-shaders/**. The repository name, Vite production base, canonical/share URL, and social image URLs must be updated together if the site moves.
+
+The app includes a manifest, icons, Apple touch icon, and a production-only service worker. Use your browser's install action to launch it in a standalone window. On iPhone/iPad, use Safari's **Share → Add to Home Screen**. The layout accounts for display cutouts and the home indicator. Safari/WebKit without usable WebGPU shows a static preview while editing, local storage, import, and export remain available.
+
+After the first successful online load and service-worker installation, the app shell, bundled fonts, sample object, shader engine, and six starter compositions are available offline. External media URLs may still need a network connection. Offline launch depends on the browser retaining its cached site data. Projects remain in IndexedDB; installing does not create a cloud backup. Export JSON to keep portable copies.
+
+Updates download in the background and wait until all app tabs/windows close before activating. They never force a reload during editing. Close all app windows and reopen while online to pick up a downloaded update. `npm run dev` does not install a service worker; use the production preview to check offline behavior.
+
+The toolbar's **Share app** button shares the public app URL through the device's native share sheet, copies it when native sharing is unavailable, or displays a selectable link when clipboard access is blocked. Social link previews use the bundled 1200×630 card; local composition data is not included.
 
 ## Editor
 
@@ -112,4 +124,4 @@ Screenshots, downloaded round-trip files and results go to ignored `output/qa/`.
 
 `app/` owns workspace/state; `components/editor/` owns the panels; `components/controls/` supplies reusable inputs; `features/compositions/` holds schema/history/storage; `features/renderer/` isolates Shaders and fallback; `features/export/` generates files; `data/` contains verified metadata/starters; `styles/` contains editor tokens/layout.
 
-Deferred: GLB/USDZ/Three.js/3D editing, custom WGSL/component authoring, cross-parent drag/reparenting, scroll drivers, shared bounding-box/flow authoring, a global native-animation pause, service-worker installation, accounts, cloud storage, collaboration, publishing, billing and analytics. A future 3D renderer can be added alongside the existing renderer without changing the local workspace shell.
+Deferred: GLB/USDZ/Three.js/3D editing, custom WGSL/component authoring, cross-parent drag/reparenting, scroll drivers, shared bounding-box/flow authoring, a global native-animation pause, accounts, cloud storage, collaboration, composition publishing, billing and analytics. A future 3D renderer can be added alongside the existing renderer without changing the local workspace shell.

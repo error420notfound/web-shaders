@@ -3,6 +3,7 @@ import * as Shaders from "shaders/react";
 import type { ComponentType, ReactElement } from "react";
 import type { Layer } from "../compositions/schema";
 import { effects } from "../../data/registry";
+import { workshopAssetUrl } from "../assets";
 export type RenderStatus =
   "loading" | "ready" | "unavailable" | "error" | "reduced";
 export function resolveProps(
@@ -12,6 +13,8 @@ export function resolveProps(
   const props = { ...layer.props };
   for (const [key, d] of Object.entries(layer.drivers))
     props[key] = playing ? d.config : d.rest;
+  for (const [key, value] of Object.entries(props))
+    if (typeof value === "string") props[key] = workshopAssetUrl(value);
   return props;
 }
 function node(l: Layer, playing: boolean): ReactElement {

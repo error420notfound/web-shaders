@@ -10,6 +10,7 @@ import type { Project } from "../../features/compositions/schema";
 import type { RenderStatus } from "../../features/renderer/ShaderRenderer";
 import { RenderBoundary } from "../../features/renderer/RenderBoundary";
 import { Icon, IconButton } from "../controls/Primitives";
+import { workshopAssetUrl } from "../../features/assets";
 const Renderer = lazy(() => import("../../features/renderer/ShaderRenderer"));
 export function Canvas({
   project,
@@ -35,6 +36,7 @@ export function Canvas({
   const [status, setStatus] = useState<RenderStatus>("loading");
   const [reason, setReason] = useState("");
   const [retry, setRetry] = useState(0);
+  const noWebGPU = !("gpu" in navigator);
   const [pageVisible, setPageVisible] = useState(
     () => document.visibilityState !== "hidden",
   );
@@ -55,7 +57,12 @@ export function Canvas({
     if (reduced) updateStatus("reduced");
     else if (forceFallback)
       updateStatus("unavailable", "Controlled fallback preview");
-  }, [reduced, forceFallback, updateStatus]);
+    else if (noWebGPU)
+      updateStatus(
+        "unavailable",
+        "This browser does not support WebGPU. Editing and export remain available.",
+      );
+  }, [reduced, forceFallback, noWebGPU, updateStatus]);
   useEffect(() => {
     const o = new ResizeObserver((entries) => {
       const b = entries[0].contentRect;
@@ -76,7 +83,11 @@ export function Canvas({
   const scale = zoom || Math.max(0.1, fit);
   const p = project.preview;
   const fallback =
-    status === "unavailable" || status === "error" || reduced || forceFallback;
+    status === "unavailable" ||
+    status === "error" ||
+    reduced ||
+    forceFallback ||
+    noWebGPU;
   const compositionKey = project.id + ":" + retry;
   return (
     <main className="canvas-area">
@@ -116,7 +127,7 @@ export function Canvas({
             color: p.textColor,
           }}
         >
-          {!reduced && !forceFallback && pageVisible && (
+          {!reduced && !forceFallback && !noWebGPU && pageVisible && (
             <RenderBoundary
               key={compositionKey}
               onError={(e) => updateStatus("error", e)}
@@ -159,7 +170,7 @@ export function Canvas({
           {project.context === "item" && (
             <img
               className="preview-object"
-              src={p.image || "/sample-object.svg"}
+              src={workshopAssetUrl(p.image || "/sample-object.svg")}
               alt={
                 p.imageName || "Neutral FORM sample object, a 2D preview image"
               }

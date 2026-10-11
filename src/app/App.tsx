@@ -23,6 +23,7 @@ import { Inspector } from "../components/editor/Inspector";
 import { Canvas } from "../components/editor/Canvas";
 import { ExportDialog } from "../components/editor/ExportDialog";
 import { Icon, IconButton, Modal } from "../components/controls/Primitives";
+import { ShareButton } from "../components/controls/ShareButton";
 import { download } from "../features/export/code";
 import type { RenderStatus } from "../features/renderer/ShaderRenderer";
 
@@ -490,11 +491,14 @@ export default function App() {
             <span>Item Background</span>
           </button>
         </div>
-        <IconButton
-          icon={theme === "light" ? "moon" : "sun"}
-          label="Switch theme"
-          onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-        />
+        <div className="theme-control">
+          <IconButton
+            icon={theme === "light" ? "moon" : "sun"}
+            label="Switch theme"
+            onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+          />
+        </div>
+        <ShareButton />
         <button
           className="button primary export-trigger"
           onClick={() => setModal("export")}
